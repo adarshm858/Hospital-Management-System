@@ -47,7 +47,7 @@ public class DoctorServiceImpl implements DoctorService {
                 .city(request.getCity())
                 .state(request.getState())
                 .country(request.getCountry())
-                .available(request.getAvailable())
+                .available(request.getAvailable() != null ? request.getAvailable() : true)
                 .build();
 
         Doctor savedDoctor = doctorRepository.save(doctor);
@@ -91,7 +91,9 @@ public class DoctorServiceImpl implements DoctorService {
         doctor.setCity(request.getCity());
         doctor.setState(request.getState());
         doctor.setCountry(request.getCountry());
-        doctor.setAvailable(request.getAvailable());
+        if (request.getAvailable() != null) {
+            doctor.setAvailable(request.getAvailable());
+        }
 
         Doctor updatedDoctor = doctorRepository.save(doctor);
 

@@ -1,18 +1,133 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
 
-* {
-    margin: 0;
-    padding: 0;
+@layer base {
+  :root {
+    --color-primary: #0B7285;
+    --color-primary-light: #E0FCFF;
+    --color-primary-dark: #085260;
+    --color-accent: #14B8A6;
+    --color-bg: #F4F7F9;
+    --color-surface: #FFFFFF;
+    --color-text: #102A43;
+    --color-text-secondary: #627D98;
+    --color-border: #D9E2EC;
+    --color-success: #16A34A;
+    --color-warning: #D97706;
+    --color-critical: #DC2626;
+    --color-info: #2563EB;
+  }
+
+  .dark {
+    --color-bg: #0A101D;
+    --color-surface: #102A43;
+    --color-text: #F0F4F8;
+    --color-text-secondary: #9FB3C8;
+    --color-border: #243B53;
+  }
+
+  * {
     box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
 }
 
-
-body {
-    font-family: Arial, Helvetica, sans-serif;
+/* Custom Sleek Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
 }
 
+/* Print Stylesheet for Invoices & Prescriptions */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .no-print, aside, header, nav, button:not(.print-include) {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .print-container {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 20px !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+}
 
-#root {
-    min-height: 100vh;
+/* Toast Animations */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.animate-toast-in {
+  animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-toast-out {
+  animation: slideOutRight 0.2s ease-in forwards;
+}
+
+/* Modal Fade/Scale Animations */
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-modal-in {
+  animation: modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

@@ -1,11 +1,22 @@
-function App() {
-  return (
-    <div className="min-h-screen bg-red-500 flex items-center justify-center">
-      <h1 className="text-5xl font-bold text-white">
-        HMS Frontend Working
-      </h1>
-    </div>
-  )
-}
+import { BrowserRouter } from 'react-router-dom';
+import { ThemeProvider } from './context/ThemeContext';
+import { ToastProvider } from './context/ToastContext';
+import { AuthProvider } from './context/AuthContext';
+import { PrivacyProvider } from './context/PrivacyContext';
+import AppRoutes from './routes/AppRoutes';
 
-export default App
+export default function App() {
+  return (
+    <BrowserRouter>
+      <ThemeProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <PrivacyProvider>
+              <AppRoutes />
+            </PrivacyProvider>
+          </AuthProvider>
+        </ToastProvider>
+      </ThemeProvider>
+    </BrowserRouter>
+  );
+}

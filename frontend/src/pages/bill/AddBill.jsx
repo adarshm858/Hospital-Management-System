@@ -1,454 +1,318 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-
+import { useEffect, useState, useMemo } from 'react';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import {
-    createBill,
-    getBillById,
-    updateBill
-} from "../../api/billApi";
+  ArrowLeft,
+  Save
+} from 'lucide-react';
+import billingService from '../../services/billingService';
+import appointmentService from '../../services/appointmentService';
+import { useToast } from '../../context/ToastContext';
+import { FormInput, FormSelect } from '../../components/common/FormControls';
+import ButtonLoader from '../../components/common/ButtonLoader';
+import { formatCurrency } from '../../utils/formatters';
+import { PAYMENT_METHODS } from '../../constants';
 
-import { getAllAppointments } from "../../api/appointmentApi";
+export default function AddBill() {
+  const { id } = useParams();
+  const isEdit = Boolean(id);
+  const navigate = useNavigate();
+  const toast = useToast();
 
+  const [appointments, setAppointments] = useState([]);
 
-function AddBill() {
+  const [formData, setFormData] = useState({
+    appointmentId: '',
+    medicineCharge: 0,
+    labCharge: 0,
+    otherCharge: 0,
+    discount: 0,
+    paymentMethod: 'CASH',
+    paymentStatus: 'PAID'
+  });
 
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-    const navigate = useNavigate();
+  useEffect(() => {
+    const loadPrerequisites = async () => {
+      try {
+        setIsLoading(true);
+        const appts = await appointmentService.getAll();
+        setAppointments(appts || []);
 
-    const { id } = useParams();
-
-
-    const [appointments, setAppointments] = useState([]);
-
-
-
-    const [bill, setBill] = useState({
-
-        appointmentId: "",
-        medicineCharge: "",
-        labCharge: "",
-        otherCharge: "",
-        discount: "",
-        paymentMethod: "CASH"
-
-    });
-
-
-
-    useEffect(() => {
-
-        loadAppointments();
-
-        if (id) {
-
-            loadBill();
-
-        }
-
-    }, [id]);
-
-
-
-    const loadAppointments = async () => {
-
-        try {
-
-            const response = await getAllAppointments();
-
-            setAppointments(response.data);
-
-
-        } catch (error) {
-
-            console.log(error);
-
-        }
-
-    };
-
-
-
-    const loadBill = async () => {
-
-        try {
-
-            const response = await getBillById(id);
-
-            const data = response.data;
-
-
-            setBill({
-
-                appointmentId: data.appointmentId,
-
-                medicineCharge: data.medicineCharge ?? "",
-
-                labCharge: data.labCharge ?? "",
-
-                otherCharge: data.otherCharge ?? "",
-
-                discount: data.discount ?? "",
-
-                paymentMethod: data.paymentMethod ?? "CASH"
-
+        if (isEdit) {
+          const bill = await billingService.getById(id);
+          if (bill) {
+            setFormData({
+              appointmentId: bill.appointmentId || '',
+              medicineCharge: bill.medicineCharge || 0,
+              labCharge: bill.labCharge || 0,
+              otherCharge: bill.otherCharge || 0,
+              discount: bill.discount || 0,
+              paymentMethod: bill.paymentMethod || 'CASH',
+              paymentStatus: bill.paymentStatus || 'PAID'
             });
-
-
-        } catch (error) {
-
-            console.log(error);
-
-        }
-
-    };
-
-
-
-    const handleChange = (e) => {
-
-        setBill({
-
-            ...bill,
-
-            [e.target.name]: e.target.value
-
-        });
-
-    };
-
-
-
-    const handleSubmit = async (e) => {
-
-        e.preventDefault();
-
-
-
-        if (!bill.appointmentId) {
-
-            alert("Please select appointment");
-
-            return;
-
-        }
-
-
-
-        try {
-
-
-            const data = {
-
-                appointmentId: Number(
-                    bill.appointmentId
-                ),
-
-                medicineCharge: Number(
-                    bill.medicineCharge || 0
-                ),
-
-                labCharge: Number(
-                    bill.labCharge || 0
-                ),
-
-                otherCharge: Number(
-                    bill.otherCharge || 0
-                ),
-
-                discount: Number(
-                    bill.discount || 0
-                ),
-
-                paymentMethod: bill.paymentMethod
-
-            };
-
-
-
-            console.log(
-                "BILL DATA:",
-                data
-            );
-
-
-
-            if (id) {
-
-
-                await updateBill(
-                    id,
-                    data
-                );
-
-
-                alert(
-                    "Bill Updated Successfully"
-                );
-
-
-            } else {
-
-
-                await createBill(data);
-
-
-                alert(
-                    "Bill Created Successfully"
-                );
-
-
             }
-
-
-
-            navigate("/bills");
-
-
-
-        } catch (error) {
-
-
-            console.log(error);
-
-
-            console.log(
-                error.response?.data
-            );
-
-
-            alert(
-                error.response?.data?.message ||
-                "Operation Failed"
-            );
-
-
+        } else if (appts?.length > 0) {
+          setFormData((prev) => ({ ...prev, appointmentId: appts[0].id }));
         }
-
+      } catch {
+        toast.error('Failed to load billing dependencies.');
+      } finally {
+        setIsLoading(false);
+      }
     };
+    loadPrerequisites();
+  }, [id, isEdit, toast]);
 
+  const handleAppointmentChange = (e) => {
+    const aId = Number(e.target.value);
+    setFormData((prev) => ({ ...prev, appointmentId: aId }));
+  };
 
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: null }));
+    }
+  };
 
+  // Live computed total
+  const estimatedTotal = useMemo(() => {
+    const med = Number(formData.medicineCharge) || 0;
+    const lab = Number(formData.labCharge) || 0;
+    const other = Number(formData.otherCharge) || 0;
+    const disc = Number(formData.discount) || 0;
+    // backend adds doctor consultation fee internally if fetched from appointment
+    return Math.max(0, med + lab + other - disc);
+  }, [formData]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.appointmentId) {
+      toast.warning('Please select an appointment for billing.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const payload = {
+        appointmentId: Number(formData.appointmentId),
+        medicineCharge: Number(formData.medicineCharge) || 0,
+        labCharge: Number(formData.labCharge) || 0,
+        otherCharge: Number(formData.otherCharge) || 0,
+        discount: Number(formData.discount) || 0,
+        paymentMethod: formData.paymentMethod
+      };
+
+      if (isEdit) {
+        await billingService.update(id, {
+          ...payload,
+          paymentStatus: formData.paymentStatus
+        });
+        toast.success('Invoice updated successfully.');
+      } else {
+        await billingService.create(payload);
+        toast.success('Patient invoice generated and added to ledger.');
+      }
+      navigate('/bills');
+    } catch (err) {
+      toast.error(err.message || 'Failed to save billing invoice.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
     return (
+      <div className="py-20 text-center">
+        <ButtonLoader size="md" className="text-teal-700" />
+        <p className="mt-2 text-sm text-slate-500">Preparing invoice form...</p>
+      </div>
+    );
+  }
 
-        <div className="bg-white rounded-xl shadow p-8">
-
-
-            <h1 className="text-3xl font-bold text-blue-700 mb-6">
-
-                {id ? "Edit Bill" : "Add Bill"}
-
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      {/* Top Header */}
+      <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex items-center gap-3">
+          <Link
+            to="/bills"
+            className="p-2 text-slate-500 hover:text-slate-800 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+              {isEdit ? 'Update Billing Invoice' : 'Generate Patient Bill'}
             </h1>
-
-
-
-            <form
-
-                onSubmit={handleSubmit}
-
-                className="grid grid-cols-1 md:grid-cols-2 gap-5"
-
-            >
-
-
-
-                <div className="md:col-span-2">
-
-                    <label className="block text-gray-600 mb-1">
-                        Select Appointment
-                    </label>
-
-
-                    <select
-
-                        name="appointmentId"
-
-                        value={bill.appointmentId}
-
-                        onChange={handleChange}
-
-                        className="w-full border rounded-lg p-3"
-
-                    >
-
-                        <option value="">
-                            Select Appointment
-                        </option>
-
-
-                        {
-                            appointments.map((appointment) => (
-
-                                <option
-
-                                    key={appointment.id}
-
-                                    value={appointment.id}
-
-                                >
-
-                                    {appointment.appointmentId}
-                                    {" - "}
-                                    {appointment.patientName}
-                                    {" - "}
-                                    Dr. {appointment.doctorName}
-
-                                </option>
-
-                            ))
-                        }
-
-
-                    </select>
-
-
-                </div>
-
-
-
-
-                {
-                    [
-                        ["medicineCharge", "Medicine Charge"],
-                        ["labCharge", "Lab Charge"],
-                        ["otherCharge", "Other Charge"],
-                        ["discount", "Discount"]
-
-                    ].map(([name, label]) => (
-
-
-                        <div key={name}>
-
-
-                            <label className="block text-gray-600 mb-1">
-
-                                {label}
-
-                            </label>
-
-
-
-                            <input
-
-                                type="number"
-
-                                name={name}
-
-                                value={bill[name]}
-
-                                onChange={handleChange}
-
-                                className="w-full border rounded-lg p-3"
-
-                            />
-
-
-                        </div>
-
-
-                    ))
-                }
-
-
-
-
-
-                <div>
-
-                    <label className="block text-gray-600 mb-1">
-                        Payment Method
-                    </label>
-
-
-                    <select
-
-                        name="paymentMethod"
-
-                        value={bill.paymentMethod}
-
-                        onChange={handleChange}
-
-                        className="w-full border rounded-lg p-3"
-
-                    >
-
-                        <option value="CASH">
-                            CASH
-                        </option>
-
-
-                        <option value="CARD">
-                            CARD
-                        </option>
-
-
-                        <option value="UPI">
-                            UPI
-                        </option>
-
-
-                        <option value="NET_BANKING">
-                            NET BANKING
-                        </option>
-
-
-                        <option value="INSURANCE">
-                            INSURANCE
-                        </option>
-
-
-                    </select>
-
-
-                </div>
-
-
-
-
-
-                <div className="md:col-span-2 flex gap-4">
-
-
-                    <button
-
-                        type="submit"
-
-                        className="bg-blue-600 text-white px-6 py-3 rounded-lg"
-
-                    >
-
-                        {id ? "Update Bill" : "Save Bill"}
-
-                    </button>
-
-
-
-                    <button
-
-                        type="button"
-
-                        onClick={() => navigate("/bills")}
-
-                        className="bg-gray-500 text-white px-6 py-3 rounded-lg"
-
-                    >
-
-                        Cancel
-
-                    </button>
-
-
-                </div>
-
-
-
-            </form>
-
-
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Calculate clinical fees, drug prescriptions, lab charges, and payment mode.
+            </p>
+          </div>
         </div>
 
-    );
+        <Link
+          to="/bills"
+          className="text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 transition"
+        >
+          Cancel
+        </Link>
+      </div>
 
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-5">
+          {/* Appointment Picker */}
+          {!isEdit && (
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                Select Consultation Appointment <span className="text-rose-500">*</span>
+              </label>
+              <select
+                name="appointmentId"
+                value={formData.appointmentId}
+                onChange={handleAppointmentChange}
+                required
+                className="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-2.5"
+              >
+                <option value="" disabled>
+                  Choose appointment...
+                </option>
+                {appointments.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    Slot #{a.appointmentId || a.id} — {a.patientName || `Patient #${a.patientId}`} with Dr. {a.doctorName || 'Doctor'} ({a.appointmentDate})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Charges Breakdown */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormInput
+              label="Medicine Charges (INR)"
+              name="medicineCharge"
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.medicineCharge}
+              onChange={handleChange}
+              placeholder="0.00"
+            />
+
+            <FormInput
+              label="Laboratory Investigation Charges (INR)"
+              name="labCharge"
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.labCharge}
+              onChange={handleChange}
+              placeholder="0.00"
+            />
+
+            <FormInput
+              label="Other Hospital & Nursing Charges (INR)"
+              name="otherCharge"
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.otherCharge}
+              onChange={handleChange}
+              placeholder="0.00"
+            />
+
+            <FormInput
+              label="Discount / Concession Amount (INR)"
+              name="discount"
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.discount}
+              onChange={handleChange}
+              placeholder="0.00"
+            />
+          </div>
+
+          {/* Payment Method & Status */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <FormSelect
+              label="Payment Method"
+              name="paymentMethod"
+              value={formData.paymentMethod}
+              onChange={handleChange}
+              options={PAYMENT_METHODS}
+            />
+
+            {isEdit && (
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                  Settlement Status
+                </label>
+                <select
+                  name="paymentStatus"
+                  value={formData.paymentStatus}
+                  onChange={handleChange}
+                  className="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-2.5"
+                >
+                  <option value="PAID">Paid in Full</option>
+                  <option value="PENDING">Pending Settlement</option>
+                  <option value="CANCELLED">Cancelled</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Live Subtotal Summary Box */}
+          <div className="p-4 rounded-xl bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-900 flex justify-between items-center text-xs">
+            <div>
+              <span className="font-semibold text-slate-700 dark:text-slate-300 block">
+                Calculated Additional Services Total:
+              </span>
+              <span className="text-[11px] text-teal-700 dark:text-teal-400">
+                (Physician consultation fee is auto-added from doctor profile upon save)
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-base font-black text-teal-800 dark:text-teal-300 font-mono">
+                {formatCurrency(estimatedTotal)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={() => navigate('/bills')}
+            className="px-5 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border rounded-xl"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="px-6 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-xl shadow-xs transition flex items-center gap-2 disabled:opacity-60 cursor-pointer"
+          >
+            {isSubmitting ? (
+              <>
+                <ButtonLoader size="sm" />
+                <span>Generating Invoice...</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                <span>{isEdit ? 'Update Invoice' : 'Generate & Issue Invoice'}</span>
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
 }
-
-
-export default AddBill;
